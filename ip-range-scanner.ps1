@@ -30,7 +30,7 @@
 	.OUTPUTS
 		The function outputs a table with two columns: "IP-address" and "Hostname". Active IP addresses are listed in the "IP-address" column,
 		and their corresponding hostnames, if resolvable, are listed in the "Hostname" column.
- 
+
 	.NOTES
 		This function assumes that the subnet has a range of 255 IP addresses, starting from the 1st address and up to the 255th address.
 		Adjust the loop range in the script if you need to scan a different range of IP addresses.
