@@ -1,52 +1,103 @@
-﻿<#
-.SYNOPSIS
-	Scans a Class C network subnet for active hosts.
-.DESCRIPTION
-	This script pings each IP address within a specified Class C network subnet.
-	It then outputs the IP addresses and hostnames (if available) of active hosts to the console.
-#>
+﻿function Get-ActiveIPAddresses {
+	<#
+	.SYNOPSIS
+		This function scans a subnet for active IP addresses and resolves their hostnames, if available.
+ 
+	.DESCRIPTION
+		This function first removes any existing PowerShell jobs, then iterates through a range of IP addresses within a subnet
+		and tests the connection to each address. After all connections are tested, the function outputs a table with
+		the active IP addresses and their corresponding hostnames, if resolvable.
+ 
+	.PARAMETER ip
+		The starting IP address for the subnet to be scanned.
 
-# Set the initial IP address
-$ip = "10.108.60.0"
+	.PARAMETER startRange
+		The starting value of the IP range counter. Default value is 0.
+		This value is used in the loop to iterate through the IP addresses within the subnet.
 
-# Remove any existing jobs
-Get-Job | Remove-Job
+	.PARAMETER endRange
+		The ending value of the IP range counter, exclusive. Default value is 255.
+		This value is used in the loop to determine the stopping point for iterating through the IP addresses within the subnet.
 
-# Extract the subnet from the IP address using regex
-$ip -match '\d+.\d+.\d+'
-$Matches[0]
+	.EXAMPLE
+		To use this function, call it with the desired starting IP address and optional startRange and endRange values:
+		Get-ActiveIPAddresses -ip "10.108.60.0" -startRange 5 -endRange 255
 
-# Loop through 0 to 254 (255 iterations)
-for ($i = 0; $i -lt 255; $i++) {
-	# Create the current IP address by combining the subnet and the current iteration
-	$range = $Matches[0], $i -join "."
+	.INPUTS
+		The input for this function is the ip parameter, which should be set to the starting IP address of the desired subnet.
+		Optionally, you can provide the startRange and endRange parameters to customize the IP range to be scanned.
+
+	.OUTPUTS
+		The function outputs a table with two columns: "IP-address" and "Hostname". Active IP addresses are listed in the "IP-address" column,
+		and their corresponding hostnames, if resolvable, are listed in the "Hostname" column.
+ 
+	.NOTES
+		This function assumes that the subnet has a range of 254 IP addresses, starting from the 1st address and up to the 254th address.
+		Adjust the loop range in the script if you need to scan a different range of IP addresses.
 	
-	# Ping the IP address once and create a job for it, suppressing any errors
-	Test-Connection -ComputerName $range -Count 1 -ErrorAction Stop -AsJob
-}
+	.LINK
+		https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_comment_based_help
+		https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/about/about_functions
+		https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.management/test-connection
+		https://docs.microsoft.com/en-us/powershell/module/dnsclient/resolve-dnsname
+		https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/get-job
+		https://docs.microsoft.com/en-us/powershell/module/microsoft.powershell.core/wait-job
 
-# Wait for all jobs to complete
-Get-Job | Wait-Job
-
-# Clear the console screen
-Clear-Host
-
-# Loop through the completed jobs
-foreach ($job in Get-Job) {
-	# Get the job result
-	$job_result = Receive-Job $Job
-
+	#>
+ 
+	[CmdletBinding()]
+	param (
+		[Parameter(Mandatory = $true, Position = 0)]
+		[string]$ip,
+		[Parameter(Position = 1)]
+		[int]$startRange = 0,
+		[Parameter(Position = 2)]
+		[int]$endRange = 255
+	)
 	
-	# If the IP address is online (response time is greater or equal to 0)
-	if ($job_result.responsetime -ge 0) {
-		# Try to resolve the DNS name of the IP address, suppressing any errors
-		if (Resolve-DnsName $job_result.Address -ErrorAction Ignore) {
-			# Display the IP address and the trimmed DNS name without the domain suffix
-			Write-Host $job_result.Address "	" ((Resolve-DnsName $job_result.Address -ErrorAction Ignore).NameHost).TrimEnd(".stadt.wolfsburg.de")
+	
+	# Get all PowerShell jobs and store them in a variable
+	$jobs = Get-Job
+	
+	# If there are any existing jobs, remove them
+	if ($jobs) { Remove-Job -Job $jobs }
+	
+	# Use regex to extract the base IP from the given IP address
+	$ip -match '(\d+\.\d+\.\d+)\.'
+	$baseIP = $Matches[1]
+	
+	# Loop through IP addresses in the subnet, starting from the 5th address and up to 254
+	for ($i = 0; $i -lt 255; $i++) {
+		# Create a new IP address in the range using the base IP and the loop counter
+		$ipRange = "$baseIP.$i"
+		# Test the connection to the IP address and run it as a background job
+		Test-Connection -ComputerName $ipRange -Count 1 -ErrorAction Stop -AsJob
+	}
+	
+	# Wait for all the background jobs to complete
+	Get-Job | Wait-Job
+	# Clear the console screen
+	Clear-Host
+	
+	# Output the header for the results table
+	Write-Host "IP-address" "`t" "Hostname`n"
+	
+	# Loop through each job and process the results
+	foreach ($job in Get-Job) {
+		# Receive the job results
+		$jobResult = Receive-Job $job
+		# Check if the response time is greater than or equal to 0, indicating a successful connection
+		if ($jobResult.ResponseTime -ge 0) {
+			# Try to resolve the DNS name for the IP address, ignoring any errors
+			$dnsResult = Resolve-DnsName $jobResult.Address -ErrorAction Ignore
+			# If a DNS result is returned, output the IP address and corresponding hostname
+			if ($dnsResult) {
+				Write-Host $jobResult.Address "`t" ($dnsResult.NameHost).TrimEnd(".stadt.wolfsburg.de")
+			}
+			# If no DNS result is returned, output just the IP address
+			else {
+				Write-Host $jobResult.Address
+			}
 		}
-		else {
-			# Display just the IP address if no DNS name is found
-			Write-Host $job_result.Address
-		}
-	} 
+	}
 }
