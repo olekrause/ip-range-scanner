@@ -21,7 +21,7 @@
 
 	.EXAMPLE
 		To use this function, call it with the desired starting IP address and optional startRange and endRange values:
-		Get-ActiveIPAddresses -ip "10.108.60.0" -startRange 5 -endRange 255
+		Get-ActiveIPAddresses -ip "10.108.60.0" -startRange 5 -endRange 120
 
 	.INPUTS
 		The input for this function is the ip parameter, which should be set to the starting IP address of the desired subnet.
@@ -32,7 +32,7 @@
 		and their corresponding hostnames, if resolvable, are listed in the "Hostname" column.
  
 	.NOTES
-		This function assumes that the subnet has a range of 254 IP addresses, starting from the 1st address and up to the 254th address.
+		This function assumes that the subnet has a range of 255 IP addresses, starting from the 1st address and up to the 255th address.
 		Adjust the loop range in the script if you need to scan a different range of IP addresses.
 	
 	.LINK
@@ -67,7 +67,7 @@
 	$baseIP = $Matches[1]
 	
 	# Loop through IP addresses in the subnet, starting from the 5th address and up to 254
-	for ($i = 0; $i -lt 255; $i++) {
+	for ($i = $startRange; $i -le $endRange; $i++) {
 		# Create a new IP address in the range using the base IP and the loop counter
 		$ipRange = "$baseIP.$i"
 		# Test the connection to the IP address and run it as a background job
